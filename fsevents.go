@@ -26,6 +26,7 @@ import "C"
 import (
 	"path/filepath"
 	"runtime"
+	"sync"
 	"syscall"
 	"time"
 	"unsafe"
@@ -165,6 +166,7 @@ func EventIDForDeviceBeforeTime(dev int32, before time.Time) uint64 {
 type EventStream struct {
 	stream       C.FSEventStreamRef
 	rlref        C.CFRunLoopRef
+	rlrefLock    sync.Mutex
 	hasFinalizer bool
 
 	Events  chan []Event
@@ -215,8 +217,10 @@ func (es *EventStream) Start() {
 
 	go func() {
 		runtime.LockOSThread()
+		es.rlrefLock.Lock()
 		es.rlref = C.CFRunLoopGetCurrent()
 		C.FSEventStreamScheduleWithRunLoop(es.stream, es.rlref, C.kCFRunLoopDefaultMode)
+		es.rlrefLock.Unlock()
 		C.FSEventStreamStart(es.stream)
 		C.CFRunLoopRun()
 	}()
@@ -242,7 +246,11 @@ func (es *EventStream) Stop() {
 		C.FSEventStreamStop(es.stream)
 		C.FSEventStreamInvalidate(es.stream)
 		C.FSEventStreamRelease(es.stream)
-		C.CFRunLoopStop(es.rlref)
+		if es.rlref != nil {
+			es.rlrefLock.Lock()
+			C.CFRunLoopStop(es.rlref)
+			es.rlrefLock.Unlock()
+		}
 	}
 	es.stream = nil
 }
