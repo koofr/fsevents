@@ -220,8 +220,8 @@ func (es *EventStream) Start() {
 		es.rlrefLock.Lock()
 		es.rlref = C.CFRunLoopGetCurrent()
 		C.FSEventStreamScheduleWithRunLoop(es.stream, es.rlref, C.kCFRunLoopDefaultMode)
-		es.rlrefLock.Unlock()
 		C.FSEventStreamStart(es.stream)
+		es.rlrefLock.Unlock()
 		C.CFRunLoopRun()
 	}()
 
@@ -242,16 +242,16 @@ func (es *EventStream) Flush(sync bool) {
 
 // Stop listening to the event stream.
 func (es *EventStream) Stop() {
+	es.rlrefLock.Lock()
 	if es.stream != nil {
 		C.FSEventStreamStop(es.stream)
 		C.FSEventStreamInvalidate(es.stream)
 		C.FSEventStreamRelease(es.stream)
 		if es.rlref != nil {
-			es.rlrefLock.Lock()
 			C.CFRunLoopStop(es.rlref)
-			es.rlrefLock.Unlock()
 		}
 	}
+	es.rlrefLock.Unlock()
 	es.stream = nil
 }
 
